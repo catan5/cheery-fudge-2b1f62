@@ -1,0 +1,41 @@
+name: Daily Match Refresh
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-matches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - run: node scripts/update-match-data.js
+        env:
+          ZAFRONIX_API_URL: ${{ secrets.ZAFRONIX_API_URL }}
+
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet index.html; then
+            echo "No changes to match data"
+          else
+            git add index.html
+            git commit -m "chore: update match outcomes from API"
+            git push
+          fi
+
+      - name: Trigger Netlify Deploy
+        if: ${{ !cancelled() }}
+        run: |
+          curl -X POST ${{ secrets.NETLIFY_BUILD_HOOK }}
